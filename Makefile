@@ -15,6 +15,7 @@ go-test:
 
 go-build:
 	cd submit && CGO_ENABLED=0 go build ./cmd/amiguard-submit
+	cd submit && CGO_ENABLED=0 go build ./cmd/amiguard-admin
 
 container-build:
 	podman build -t localhost/amiguard-submit:local -f submit/Containerfile submit
