@@ -27,6 +27,7 @@ port=18080
 
 cleanup() {
   podman rm -f "$name" >/dev/null 2>&1 || true
+  rm -f /tmp/amiguard-health.json /tmp/amiguard-landing.html /tmp/amiguard-post.body
 }
 trap cleanup EXIT INT TERM
 
@@ -53,7 +54,18 @@ while [ "$i" -lt 30 ]; do
 done
 
 curl -fsS "http://127.0.0.1:${port}/healthz" | grep -q '"status":"ok"'
-curl -fsS "http://127.0.0.1:${port}/" | grep -q 'Uploads are disabled'
+curl -fsS "http://127.0.0.1:${port}/" >/tmp/amiguard-landing.html
+grep -q 'The secure submission channel is currently closed.' /tmp/amiguard-landing.html
+if grep -q '<form' /tmp/amiguard-landing.html; then
+  echo "qualification error: disabled landing page exposes upload form" >&2
+  exit 1
+fi
+post_status=$(curl -sS -o /tmp/amiguard-post.body -w '%{http_code}' \
+  -X POST "http://127.0.0.1:${port}/api/v1/submissions")
+[ "$post_status" = "404" ] || {
+  echo "qualification error: disabled submission endpoint returned HTTP $post_status" >&2
+  exit 1
+}
 
 podman inspect "$name" --format '{{.HostConfig.ReadonlyRootfs}}' | grep -qx 'true'
 podman inspect "$name" --format '{{.HostConfig.PidsLimit}}' | grep -qx '64'
