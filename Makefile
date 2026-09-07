@@ -8,6 +8,7 @@ validate:
 
 hardening:
 	python3 scripts/validate_m2_hardening.py
+	python3 scripts/validate_m4_closed_vps_contract.py
 
 go-test:
 	cd submit && go test ./...
