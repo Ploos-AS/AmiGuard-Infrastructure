@@ -22,6 +22,8 @@ M5.2 adds `amiguard-admin`, a local/SSH-only quarantine CLI for metadata dashboa
 
 M5.3 defines the initial production operations policy for retention/deletion, hostile-content backup handling, verified export, log/privacy hygiene, emergency upload shutdown and the final public go-live gate.
 
+M5.4 replaces qualification-only landing-page wording with a production submission form and consent/privacy/retention contract. The Caddy example now permits only same-origin form submission while retaining a default-deny CSP.
+
 **Public sample intake remains disabled.** The production Quadlet explicitly keeps `AMIGUARD_UPLOAD_ENABLED=false`, and public POST requests to the submission endpoint must remain unavailable until the final public-intake qualification gate passes.
 
 ## Validation
@@ -70,11 +72,11 @@ amiguard-submit
 4 GiB dedicated quarantine filesystem on host
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md` and `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md` and `docs/M5_4_PUBLIC_LANDING_PAGE.md`.
 
 ## Next milestone
 
-The current M5 submit image and M5.2 admin CLI have been production-qualified while public uploads remain disabled. The remaining launch-critical work is to replace the enabled landing-page qualification text with production submission/consent content, review the live Caddy/journald logging configuration, perform the final public-intake qualification, and only then enable uploads.
+The current M5 submit image and M5.2 admin CLI have been production-qualified while public uploads remain disabled. M5.4 is implemented in the repository but still needs closed production deployment. The remaining launch-critical work is to deploy and qualify M5.4 with uploads off, align/review the live Caddy and journald logging configuration, perform the final public-intake qualification, and only then enable uploads.
 
 ## License
 
