@@ -121,11 +121,7 @@ func newHandler(cfg config) http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if cfg.uploadEnabled {
-			fmt.Fprint(w, `<!doctype html><html><head><meta charset="utf-8"><title>AmiGuard Sample Submission</title></head><body><main><h1>AmiGuard Sample Submission</h1><p>The quarantine protocol is enabled for controlled qualification.</p><p>This endpoint must not be exposed publicly until the production VPS hardening gate passes.</p></main></body></html>`)
-			return
-		}
-		fmt.Fprint(w, `<!doctype html><html><head><meta charset="utf-8"><title>AmiGuard Sample Submission</title></head><body><main><h1>AmiGuard Sample Submission</h1><p>The secure submission channel is being prepared.</p><p>Uploads are disabled until the infrastructure hardening gate has passed.</p></main></body></html>`)
+		fmt.Fprint(w, landingPage(cfg.uploadEnabled))
 	})
 	return mux
 }
