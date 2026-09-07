@@ -1,0 +1,22 @@
+[Unit]
+Description=AmiGuard sample submission service
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/amiguard-submit:local
+ContainerName=amiguard-submit
+PublishPort=127.0.0.1:8080:8080
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+Environment=AMIGUARD_SUBMIT_ADDR=0.0.0.0:8080
+Memory=192m
+PidsLimit=64
+
+[Service]
+Restart=on-failure
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
