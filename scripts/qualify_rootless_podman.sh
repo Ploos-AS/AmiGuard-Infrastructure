@@ -60,11 +60,14 @@ podman inspect "$name" --format '{{.HostConfig.PidsLimit}}' | grep -qx '64'
 podman inspect "$name" --format '{{.Config.User}}' | grep -Eq '^(65532|65532:65532)$'
 
 # Podman versions do not serialize HostConfig.CapDrop identically. Prove the
-# runtime property instead: the process must have a zero effective capability
-# mask. `podman top capeff` reports the kernel CapEff value for the process.
+# runtime property instead: the process must have no effective capabilities.
+# Depending on Podman/version, `podman top capeff` reports either `none` or a
+# zero hexadecimal mask for that state.
 capeff=$(podman top "$name" capeff | awk 'NR == 2 {print $1}')
 case "$capeff" in
-  ''|*[!0]*)
+  none|NONE|0|0000000000000000)
+    ;;
+  *)
     echo "qualification error: effective capabilities are not fully dropped (CapEff=$capeff)" >&2
     exit 1
     ;;
