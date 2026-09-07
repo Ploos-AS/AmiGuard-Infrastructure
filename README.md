@@ -8,9 +8,11 @@ AmiGuard Infrastructure is intentionally separate from scanner/appliance code. I
 
 M0 establishes the repository and infrastructure contract.
 
-M1 adds the first deployable submission-service slice for a small VPS: a minimal Go service, OCI Containerfile, rootless Podman Quadlet and Caddy reverse-proxy/TLS example. The service exposes `/healthz` and a static status page only. **Sample uploads remain disabled until a later hardening milestone.**
+M1 adds the first deployable submission-service slice for a small VPS: a minimal Go service, OCI Containerfile, rootless Podman Quadlet and Caddy reverse-proxy/TLS example.
 
-The target VPS class is deliberately small: 1 vCPU and 1 GiB RAM. The rootless application container is limited to 192 MiB and binds only to loopback behind Caddy.
+M2 adds static hardening validation and an actual rootless Podman runtime qualification in CI. The target remains 1 vCPU / 1 GiB RAM; the application container is limited to 192 MiB, runs read-only with all capabilities dropped, no-new-privileges enabled, and publishes only to loopback behind Caddy.
+
+**Sample uploads remain disabled.** M2 qualifies the deployment boundary; it does not yet accept hostile files.
 
 ## Validation
 
@@ -20,7 +22,13 @@ Requires Python 3.11+ and Go 1.23+.
 make check
 ```
 
-Optional local container build:
+With Podman and curl installed, run the rootless runtime gate as a normal non-root user:
+
+```sh
+make rootless-qualify
+```
+
+Optional local image build:
 
 ```sh
 make container-build
@@ -48,11 +56,11 @@ rootless Podman
 amiguard-submit
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md` for the M1 contract.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md` and `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`.
 
 ## Next milestone
 
-M2 should harden the VPS deployment and qualify the rootless runtime before any upload endpoint is implemented or enabled.
+M3 should define quarantine storage and the safe upload protocol: streaming size limits, server-generated submission IDs, SHA-256 while receiving, atomic writes, metadata separation and non-execution guarantees. Public sample intake must remain disabled until the real VPS has passed the production hardening gate.
 
 ## License
 
