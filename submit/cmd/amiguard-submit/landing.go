@@ -1,5 +1,12 @@
 package main
 
+import (
+	"fmt"
+	"html"
+	"net/http"
+	"strings"
+)
+
 const enabledLandingPage = `<!doctype html>
 <html lang="en">
 <head>
@@ -55,4 +62,42 @@ func landingPage(uploadEnabled bool) string {
 		return enabledLandingPage
 	}
 	return disabledLandingPage
+}
+
+func wantsHTMLReceipt(r *http.Request) bool {
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	return strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml")
+}
+
+func receiptPage(receipt submissionReceipt) string {
+	return fmt.Sprintf(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AmiGuard Submission Receipt</title>
+</head>
+<body>
+<main>
+<h1>Submission received</h1>
+<p>Your sample was accepted and stored in quarantine.</p>
+<h2>Receipt</h2>
+<dl>
+<dt>Submission ID</dt><dd><code>%s</code></dd>
+<dt>SHA-256</dt><dd><code>%s</code></dd>
+<dt>Size</dt><dd>%d bytes</dd>
+<dt>Received</dt><dd><time datetime="%s">%s</time></dd>
+</dl>
+<p>Keep the submission ID and SHA-256 digest if you need to refer to this sample later.</p>
+<p>The intake service does not provide a public download or retrieval endpoint.</p>
+<p><a href="/">Submit another sample</a></p>
+</main>
+</body>
+</html>`,
+		html.EscapeString(receipt.ID),
+		html.EscapeString(receipt.SHA256),
+		receipt.Size,
+		html.EscapeString(receipt.ReceivedAt),
+		html.EscapeString(receipt.ReceivedAt),
+	)
 }
