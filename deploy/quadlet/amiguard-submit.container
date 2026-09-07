@@ -11,10 +11,10 @@ ReadOnly=true
 NoNewPrivileges=true
 DropCapability=all
 Environment=AMIGUARD_SUBMIT_ADDR=0.0.0.0:8080
-Memory=192m
 PidsLimit=64
 
 [Service]
+MemoryMax=192M
 Restart=on-failure
 TimeoutStopSec=15
 
