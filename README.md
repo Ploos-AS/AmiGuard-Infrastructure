@@ -14,7 +14,9 @@ M2 adds static hardening validation and an actual rootless Podman runtime qualif
 
 M3 implements the controlled quarantine protocol: explicit consent, streaming size limits, 128-bit server-generated IDs, SHA-256 while receiving, `0600` storage, atomic sample/metadata commits, and no retrieval endpoint. Client filenames are neither used as paths nor retained in the M3 receipt metadata.
 
-**Public sample intake remains disabled.** The normal deployment profile still has `AMIGUARD_UPLOAD_ENABLED=false` and no writable quarantine mount. The M3 upload-enabled Quadlet is a controlled qualification example only; it must not be exposed publicly until the actual VPS passes the production hardening gate.
+M4 qualifies the real closed production VPS at `amiguard.ploos.no`: hardened SSH/firewall, DNS/TLS/Caddy, rootless Podman reboot persistence, dedicated 4 GiB `nodev,nosuid,noexec` quarantine storage, rootless UID mapping, writable quarantine bind-mount, and a controlled local end-to-end upload/hash/metadata test.
+
+**Public sample intake remains disabled.** The production Quadlet explicitly keeps `AMIGUARD_UPLOAD_ENABLED=false`, and public POST requests to the submission endpoint must remain unavailable until the later public-intake hardening gate passes.
 
 ## Validation
 
@@ -56,13 +58,17 @@ Internet
 rootless Podman
    |
 amiguard-submit
+   |
+/data/quarantine
+   |
+4 GiB dedicated quarantine filesystem on host
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md` and `docs/M3_QUARANTINE_PROTOCOL.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md` and `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`.
 
 ## Next milestone
 
-M4 should qualify the real VPS host and public edge before uploads are enabled there: SSH/firewall, DNS/TLS, Caddy limits/rate controls, rootless ownership, quarantine filesystem policy, disk exhaustion controls, retention/deletion, backup handling, manual export with hash verification, egress restrictions and incident recovery.
+M5 should harden the public-intake edge and operational workflow before uploads are enabled: request/body abuse controls, rate limiting or equivalent anti-abuse controls, egress minimization, log/privacy review, retention/deletion, backup handling, manual export with hash verification and incident recovery. Public upload enablement remains a separate final qualification gate.
 
 ## License
 
