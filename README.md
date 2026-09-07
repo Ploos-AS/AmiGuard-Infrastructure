@@ -2,7 +2,7 @@
 
 Shared infrastructure contracts and deployment foundations for the AmiGuard ecosystem.
 
-AmiGuard Infrastructure is intentionally separate from scanner/appliance code. It defines stable shared boundaries for storage, component identities, deployment assumptions, health contracts, and qualification gates.
+AmiGuard Infrastructure is intentionally separate from scanner/appliance code. It defines stable shared boundaries for storage, component identities, deployment assumptions, health contracts, quarantine intake and qualification gates.
 
 ## Status
 
@@ -12,7 +12,9 @@ M1 adds the first deployable submission-service slice for a small VPS: a minimal
 
 M2 adds static hardening validation and an actual rootless Podman runtime qualification in CI. The target remains 1 vCPU / 1 GiB RAM; the application container is limited to 192 MiB, runs read-only with all capabilities dropped, no-new-privileges enabled, and publishes only to loopback behind Caddy.
 
-**Sample uploads remain disabled.** M2 qualifies the deployment boundary; it does not yet accept hostile files.
+M3 implements the controlled quarantine protocol: explicit consent, streaming size limits, 128-bit server-generated IDs, SHA-256 while receiving, `0600` storage, atomic sample/metadata commits, and no retrieval endpoint. Client filenames are neither used as paths nor retained in the M3 receipt metadata.
+
+**Public sample intake remains disabled.** The normal deployment profile still has `AMIGUARD_UPLOAD_ENABLED=false` and no writable quarantine mount. The M3 upload-enabled Quadlet is a controlled qualification example only; it must not be exposed publicly until the actual VPS passes the production hardening gate.
 
 ## Validation
 
@@ -38,7 +40,7 @@ make container-build
 
 This repository owns shared infrastructure definitions and deployment contracts. It does not own malware samples, AmiGuard scanner implementation, historical antivirus engines, signature research conclusions, or the end-user appliance UI. Samples must never be committed here.
 
-Runtime hostile content, when enabled in a future milestone, must live only in dedicated quarantine storage outside Git and must never be executed by the intake service.
+When hostile content is eventually accepted in production, it must live only in dedicated quarantine storage outside Git and must never be executed, extracted or served by the intake service.
 
 ## Deployment model
 
@@ -56,11 +58,11 @@ rootless Podman
 amiguard-submit
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md` and `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md` and `docs/M3_QUARANTINE_PROTOCOL.md`.
 
 ## Next milestone
 
-M3 should define quarantine storage and the safe upload protocol: streaming size limits, server-generated submission IDs, SHA-256 while receiving, atomic writes, metadata separation and non-execution guarantees. Public sample intake must remain disabled until the real VPS has passed the production hardening gate.
+M4 should qualify the real VPS host and public edge before uploads are enabled there: SSH/firewall, DNS/TLS, Caddy limits/rate controls, rootless ownership, quarantine filesystem policy, disk exhaustion controls, retention/deletion, backup handling, manual export with hash verification, egress restrictions and incident recovery.
 
 ## License
 
