@@ -59,9 +59,15 @@ podman inspect "$name" --format '{{.HostConfig.ReadonlyRootfs}}' | grep -qx 'tru
 podman inspect "$name" --format '{{.HostConfig.PidsLimit}}' | grep -qx '64'
 podman inspect "$name" --format '{{.Config.User}}' | grep -Eq '^(65532|65532:65532)$'
 
-if podman inspect "$name" --format '{{json .HostConfig.CapDrop}}' | grep -vq 'ALL'; then
-  echo "qualification error: capabilities are not fully dropped" >&2
-  exit 1
-fi
+# Podman versions do not serialize HostConfig.CapDrop identically. Prove the
+# runtime property instead: the process must have a zero effective capability
+# mask. `podman top capeff` reports the kernel CapEff value for the process.
+capeff=$(podman top "$name" capeff | awk 'NR == 2 {print $1}')
+case "$capeff" in
+  ''|*[!0]*)
+    echo "qualification error: effective capabilities are not fully dropped (CapEff=$capeff)" >&2
+    exit 1
+    ;;
+esac
 
 echo "OK: rootless Podman runtime qualification passed"
