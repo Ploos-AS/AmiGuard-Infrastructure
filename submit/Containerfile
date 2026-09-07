@@ -1,0 +1,11 @@
+FROM golang:1.23-alpine AS build
+WORKDIR /src
+COPY go.mod ./
+COPY cmd ./cmd
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/amiguard-submit ./cmd/amiguard-submit
+
+FROM scratch
+COPY --from=build /out/amiguard-submit /amiguard-submit
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/amiguard-submit"]
