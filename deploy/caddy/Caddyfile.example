@@ -5,7 +5,7 @@ submit.example.invalid {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy no-referrer
-        Content-Security-Policy "default-src 'none'; style-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"
+        Content-Security-Policy "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
     }
 
