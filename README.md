@@ -16,15 +16,17 @@ M3 implements the controlled quarantine protocol: explicit consent, streaming si
 
 M4 qualifies the real closed production VPS at `amiguard.ploos.no`: hardened SSH/firewall, DNS/TLS/Caddy, rootless Podman reboot persistence, dedicated 4 GiB `nodev,nosuid,noexec` quarantine storage, rootless UID mapping, writable quarantine bind-mount, and a controlled local end-to-end upload/hash/metadata test.
 
-M5 begins public-intake abuse hardening in the application: upload attempts are rate-limited per client, simultaneous uploads are globally bounded, and forwarded client addresses are trusted only when the immediate peer is loopback Caddy. The existing 16 MiB sample bound, finite HTTP timeouts, consent requirement and strict multipart contract remain in force.
+M5 adds public-intake abuse hardening in the application: upload attempts are rate-limited per client, simultaneous uploads are globally bounded, and forwarded client addresses are trusted only when the immediate peer is loopback Caddy. The existing 16 MiB sample bound, finite HTTP timeouts, consent requirement and strict multipart contract remain in force.
 
 M5.2 adds `amiguard-admin`, a local/SSH-only quarantine CLI for metadata dashboard/list/show, sample hash verification and controlled no-overwrite export. No web-admin or retrieval endpoint is introduced.
 
 M5.3 defines the initial production operations policy for retention/deletion, hostile-content backup handling, verified export, log/privacy hygiene, emergency upload shutdown and the final public go-live gate.
 
-M5.4 replaces qualification-only landing-page wording with a production submission form and consent/privacy/retention contract. The Caddy example now permits only same-origin form submission while retaining a default-deny CSP.
+M5.4 replaces qualification-only landing-page wording with a production submission form and consent/privacy/retention contract. The Caddy policy permits only same-origin form submission while retaining a default-deny CSP.
 
-**Public sample intake remains disabled.** The production Quadlet explicitly keeps `AMIGUARD_UPLOAD_ENABLED=false`, and public POST requests to the submission endpoint must remain unavailable until the final public-intake qualification gate passes.
+M5.5 records the final public go-live qualification. A harmless fixture was submitted through the public HTTPS endpoint, its server receipt matched the local SHA-256, `amiguard-admin` verified the quarantined bytes and metadata, public retrieval routes remained unavailable, and the fixture was removed after qualification.
+
+**Public sample intake is live at `https://amiguard.ploos.no/`.** The active production deployment has `AMIGUARD_UPLOAD_ENABLED=true`. Intake remains write-only from the public side; administration and verified export remain local/SSH-only.
 
 ## Validation
 
@@ -50,7 +52,7 @@ make container-build
 
 This repository owns shared infrastructure definitions and deployment contracts. It does not own malware samples, AmiGuard scanner implementation, historical antivirus engines, signature research conclusions, or the end-user appliance UI. Samples must never be committed here.
 
-When hostile content is eventually accepted in production, it must live only in dedicated quarantine storage outside Git and must never be executed, extracted or served by the intake service.
+Hostile content accepted in production must live only in dedicated quarantine storage outside Git and must never be executed, extracted or served by the intake service.
 
 ## Deployment model
 
@@ -68,15 +70,19 @@ rootless Podman
 amiguard-submit
    |
 /data/quarantine
-   |
-4 GiB dedicated quarantine filesystem on host
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md` and `docs/M5_4_PUBLIC_LANDING_PAGE.md`.
+Administration remains separate:
+
+```text
+SSH -> amiguard-admin -> quarantine -> verified export -> isolated research environment
+```
+
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md` and `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md`.
 
 ## Next milestone
 
-The current M5 submit image and M5.2 admin CLI have been production-qualified while public uploads remain disabled. M5.4 is implemented in the repository but still needs closed production deployment. The remaining launch-critical work is to deploy and qualify M5.4 with uploads off, align/review the live Caddy and journald logging configuration, perform the final public-intake qualification, and only then enable uploads.
+M5 public intake is qualified and live. The next infrastructure work should focus on post-launch operational hardening and observability without expanding the public attack surface: capacity/health monitoring, retention housekeeping, incident drills and documented update/rollback procedures. Scanner/signature research remains in the separate AmiGuard repository.
 
 ## License
 
