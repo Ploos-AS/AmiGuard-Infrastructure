@@ -1,10 +1,13 @@
-.PHONY: check validate go-test go-build container-build
+.PHONY: check validate hardening go-test go-build container-build rootless-qualify
 
-check: validate go-test go-build
+check: validate hardening go-test go-build
 	python3 -m compileall -q scripts
 
 validate:
 	python3 scripts/validate_components.py infrastructure/components.json
+
+hardening:
+	python3 scripts/validate_m2_hardening.py
 
 go-test:
 	cd submit && go test ./...
@@ -14,3 +17,6 @@ go-build:
 
 container-build:
 	podman build -t localhost/amiguard-submit:local -f submit/Containerfile submit
+
+rootless-qualify:
+	sh scripts/qualify_rootless_podman.sh
