@@ -231,13 +231,14 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 	_ = syncDir(cfg.quarantineRoot)
 
 	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(http.StatusCreated)
 	if wantsHTMLReceipt(r) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprint(w, receiptPage(receipt))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(receipt)
 }
 
