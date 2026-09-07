@@ -86,6 +86,7 @@ func loadConfig() (config, error) {
 
 func newHandler(cfg config) http.Handler {
 	mux := http.NewServeMux()
+	abuse := newUploadAbuseGuard()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -103,6 +104,10 @@ func newHandler(cfg config) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if !abuse.begin(w, r) {
+			return
+		}
+		defer abuse.done()
 		handleSubmission(w, r, cfg)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
