@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "project": "AmiGuard-Infrastructure",
+  "environment": "foundation",
+  "components": [
+    {
+      "id": "intake",
+      "purpose": "Accept metadata and controlled submission references without storing malware in Git.",
+      "network_exposure": "public",
+      "persistent_paths": ["/data/amiguard/intake"],
+      "healthcheck": "/healthz"
+    },
+    {
+      "id": "queue",
+      "purpose": "Provide the handoff boundary between intake and downstream analysis workers.",
+      "network_exposure": "internal",
+      "persistent_paths": ["/data/amiguard/queue"],
+      "healthcheck": "/healthz"
+    },
+    {
+      "id": "evidence",
+      "purpose": "Store immutable evidence metadata, provenance, hashes and analysis receipts.",
+      "network_exposure": "internal",
+      "persistent_paths": ["/data/amiguard/evidence"],
+      "healthcheck": "/healthz"
+    }
+  ]
+}
