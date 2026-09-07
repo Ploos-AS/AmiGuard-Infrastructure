@@ -18,7 +18,11 @@ M4 qualifies the real closed production VPS at `amiguard.ploos.no`: hardened SSH
 
 M5 begins public-intake abuse hardening in the application: upload attempts are rate-limited per client, simultaneous uploads are globally bounded, and forwarded client addresses are trusted only when the immediate peer is loopback Caddy. The existing 16 MiB sample bound, finite HTTP timeouts, consent requirement and strict multipart contract remain in force.
 
-**Public sample intake remains disabled.** The production Quadlet explicitly keeps `AMIGUARD_UPLOAD_ENABLED=false`, and public POST requests to the submission endpoint must remain unavailable until the later public-intake hardening gate passes.
+M5.2 adds `amiguard-admin`, a local/SSH-only quarantine CLI for metadata dashboard/list/show, sample hash verification and controlled no-overwrite export. No web-admin or retrieval endpoint is introduced.
+
+M5.3 defines the initial production operations policy for retention/deletion, hostile-content backup handling, verified export, log/privacy hygiene, emergency upload shutdown and the final public go-live gate.
+
+**Public sample intake remains disabled.** The production Quadlet explicitly keeps `AMIGUARD_UPLOAD_ENABLED=false`, and public POST requests to the submission endpoint must remain unavailable until the final public-intake qualification gate passes.
 
 ## Validation
 
@@ -53,7 +57,7 @@ Internet
    |
  HTTPS
    |
- Caddy (host)
+Caddy (host)
    |
 127.0.0.1:8080
    |
@@ -66,11 +70,11 @@ amiguard-submit
 4 GiB dedicated quarantine filesystem on host
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md` and `docs/M5_EDGE_ABUSE_HARDENING.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md` and `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`.
 
 ## Next milestone
 
-M5 must still complete operational hardening before uploads are enabled: production rebuild/closed qualification of the M5 image, egress minimization, log/privacy review, retention/deletion, backup handling, manual export with hash verification and incident recovery. Public upload enablement remains a separate final qualification gate.
+The current M5 submit image and M5.2 admin CLI have been production-qualified while public uploads remain disabled. The remaining launch-critical work is to replace the enabled landing-page qualification text with production submission/consent content, review the live Caddy/journald logging configuration, perform the final public-intake qualification, and only then enable uploads.
 
 ## License
 
