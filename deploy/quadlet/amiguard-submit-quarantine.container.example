@@ -15,10 +15,10 @@ Environment=AMIGUARD_UPLOAD_ENABLED=true
 Environment=AMIGUARD_QUARANTINE_ROOT=/data/quarantine
 Environment=AMIGUARD_MAX_UPLOAD_BYTES=16777216
 Volume=%h/.local/share/amiguard/quarantine:/data/quarantine:rw
-Memory=192m
 PidsLimit=64
 
 [Service]
+MemoryMax=192M
 Restart=on-failure
 TimeoutStopSec=15
 
