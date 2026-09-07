@@ -10,7 +10,7 @@ required_quadlet = [
     "ReadOnly=true",
     "NoNewPrivileges=true",
     "DropCapability=all",
-    "Memory=192m",
+    "MemoryMax=192M",
     "PidsLimit=64",
 ]
 for item in required_quadlet:
