@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  m1:
+  m2:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -24,5 +24,9 @@ jobs:
           go-version: "1.23.x"
       - name: Run checks
         run: make check
-      - name: Build container image
-        run: docker build -t amiguard-submit:test -f submit/Containerfile submit
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - name: Qualify rootless Podman runtime
+        run: make rootless-qualify
