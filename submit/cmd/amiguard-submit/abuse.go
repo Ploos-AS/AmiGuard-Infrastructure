@@ -17,7 +17,7 @@ const (
 	defaultMaxConcurrentUploads    = 2
 	defaultGlobalUploadBytes       = int64(256 << 20)
 	defaultGlobalUploadByteWindow  = time.Hour
-	defaultUploadBudgetCharge      = int64((16 << 20) + (128 << 10))
+	multipartRequestOverhead       = int64(128 << 10)
 	maxConfigGlobalUploadBytes     = int64(8 << 30)
 )
 
@@ -39,8 +39,13 @@ type uploadAbuseGuard struct {
 	globalBytesStarted time.Time
 }
 
-func newUploadAbuseGuard() *uploadAbuseGuard {
-	maxBytes, byteWindow, err := globalUploadBudgetConfig()
+func newUploadAbuseGuard(maxUploadBytes ...int64) *uploadAbuseGuard {
+	configuredMaxUploadBytes := defaultMaxUploadBytes
+	if len(maxUploadBytes) > 0 && maxUploadBytes[0] > 0 {
+		configuredMaxUploadBytes = maxUploadBytes[0]
+	}
+	maxRequestCharge := configuredMaxUploadBytes + multipartRequestOverhead
+	maxBytes, byteWindow, err := globalUploadBudgetConfig(maxRequestCharge)
 	if err != nil {
 		// Invalid abuse-control configuration must never silently weaken intake.
 		// A zero budget fails closed with HTTP 429 until configuration is fixed.
@@ -54,18 +59,25 @@ func newUploadAbuseGuard() *uploadAbuseGuard {
 		slots:            make(chan struct{}, defaultMaxConcurrentUploads),
 		byteWindow:       byteWindow,
 		maxGlobalBytes:   maxBytes,
-		maxRequestCharge: defaultUploadBudgetCharge,
+		maxRequestCharge: maxRequestCharge,
 	}
 }
 
-func globalUploadBudgetConfig() (int64, time.Duration, error) {
+func globalUploadBudgetConfig(minRequestCharge ...int64) (int64, time.Duration, error) {
+	minimum := defaultMaxUploadBytes + multipartRequestOverhead
+	if len(minRequestCharge) > 0 && minRequestCharge[0] > 0 {
+		minimum = minRequestCharge[0]
+	}
 	maxBytes := defaultGlobalUploadBytes
 	window := defaultGlobalUploadByteWindow
 
+	if maxBytes < minimum {
+		return 0, 0, fmt.Errorf("default global upload byte budget %d is below maximum request allowance %d", maxBytes, minimum)
+	}
 	if raw := os.Getenv("AMIGUARD_GLOBAL_UPLOAD_BYTES"); raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || value < defaultUploadBudgetCharge || value > maxConfigGlobalUploadBytes {
-			return 0, 0, fmt.Errorf("AMIGUARD_GLOBAL_UPLOAD_BYTES must be between %d and %d", defaultUploadBudgetCharge, maxConfigGlobalUploadBytes)
+		if err != nil || value < minimum || value > maxConfigGlobalUploadBytes {
+			return 0, 0, fmt.Errorf("AMIGUARD_GLOBAL_UPLOAD_BYTES must be between %d and %d", minimum, maxConfigGlobalUploadBytes)
 		}
 		maxBytes = value
 	}
@@ -80,6 +92,17 @@ func globalUploadBudgetConfig() (int64, time.Duration, error) {
 }
 
 func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
+	// Acquire a concurrency slot before charging the byte budget. A request
+	// rejected solely because all upload workers are busy must not be able to
+	// burn the shared hourly byte allowance without having its body processed.
+	select {
+	case g.slots <- struct{}{}:
+	default:
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "too many concurrent uploads", http.StatusTooManyRequests)
+		return false
+	}
+
 	now := time.Now()
 	client := trustedClientIP(r)
 
@@ -99,6 +122,7 @@ func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
 			retryAfter = 1
 		}
 		g.mu.Unlock()
+		<-g.slots
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 		http.Error(w, "upload rate limit exceeded", http.StatusTooManyRequests)
 		return false
@@ -107,7 +131,8 @@ func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
 	// The byte budget is global rather than per-client, so rotating source IPs
 	// cannot bypass it. Charge the declared request size (including multipart
 	// overhead). Unknown/chunked sizes are conservatively charged at the
-	// maximum request allowance. Rejected/invalid requests are intentionally
+	// maximum request allowance derived from the configured sample-size limit.
+	// Rejected/invalid requests that reached an upload worker are intentionally
 	// not refunded: this is an abuse budget, not accounting.
 	if g.globalBytesStarted.IsZero() || now.Sub(g.globalBytesStarted) >= g.byteWindow {
 		g.globalBytesStarted = now
@@ -123,6 +148,7 @@ func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
 			retryAfter = 1
 		}
 		g.mu.Unlock()
+		<-g.slots
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 		http.Error(w, "global upload byte budget exceeded", http.StatusTooManyRequests)
 		return false
@@ -131,15 +157,7 @@ func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
 	bucket.count++
 	g.buckets[client] = bucket
 	g.mu.Unlock()
-
-	select {
-	case g.slots <- struct{}{}:
-		return true
-	default:
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "too many concurrent uploads", http.StatusTooManyRequests)
-		return false
-	}
+	return true
 }
 
 func (g *uploadAbuseGuard) done() {
