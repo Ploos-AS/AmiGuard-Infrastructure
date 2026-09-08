@@ -87,7 +87,6 @@ func TestUploadAbuseGuardGlobalByteBudgetAcrossClients(t *testing.T) {
 	}
 	guard.done()
 
-	// A different client IP must share the same global budget.
 	secondReq := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", nil)
 	secondReq.RemoteAddr = "203.0.113.60:2222"
 	secondReq.ContentLength = 50
@@ -119,5 +118,36 @@ func TestUploadAbuseGuardUnknownLengthChargedConservatively(t *testing.T) {
 	guard.done()
 	if guard.globalBytes != 80 {
 		t.Fatalf("unknown-length charge = %d, want 80", guard.globalBytes)
+	}
+}
+
+func TestGlobalUploadBudgetConfiguration(t *testing.T) {
+	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_BYTES", "536870912")
+	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_WINDOW_SECONDS", "7200")
+	maxBytes, window, err := globalUploadBudgetConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if maxBytes != 536870912 || window != 2*time.Hour {
+		t.Fatalf("unexpected budget config: bytes=%d window=%s", maxBytes, window)
+	}
+}
+
+func TestGlobalUploadBudgetInvalidConfigurationFailsClosed(t *testing.T) {
+	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_BYTES", "1")
+	guard := newUploadAbuseGuard()
+	if guard.maxGlobalBytes != 0 {
+		t.Fatalf("invalid configuration did not fail closed: %d", guard.maxGlobalBytes)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", nil)
+	req.RemoteAddr = "198.51.100.80:4444"
+	rr := httptest.NewRecorder()
+	if guard.begin(rr, req) {
+		guard.done()
+		t.Fatal("invalid abuse-control configuration unexpectedly allowed upload")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("got status %d", rr.Code)
 	}
 }
