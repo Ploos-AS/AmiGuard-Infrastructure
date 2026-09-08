@@ -14,6 +14,13 @@ import (
 	"testing"
 )
 
+func testConfig(root string, max int64) config {
+	return config{
+		uploadEnabled: true, quarantineRoot: root, maxUploadBytes: max,
+		quarantineMinFreeBytes: 64 << 20, quarantineMaxUsedPercent: 95,
+	}
+}
+
 func TestEnvFallback(t *testing.T) {
 	t.Setenv("AMIGUARD_TEST_VALUE", "")
 	if got := env("AMIGUARD_TEST_VALUE", "fallback"); got != "fallback" {
@@ -49,7 +56,7 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 	root := t.TempDir()
 	payload := []byte("AmiGuard M3 harmless qualification fixture\n")
 	body, contentType := multipartBody(t, true, "historic-virus-name.bin", payload)
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 4096}
+	cfg := testConfig(root, 4096)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", body)
 	req.Header.Set("Content-Type", contentType)
@@ -110,7 +117,7 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 func TestSubmissionRequiresConsentAndLeavesNoFiles(t *testing.T) {
 	root := t.TempDir()
 	body, contentType := multipartBody(t, false, "sample.bin", []byte("fixture"))
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 4096}
+	cfg := testConfig(root, 4096)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", body)
 	req.Header.Set("Content-Type", contentType)
@@ -131,7 +138,7 @@ func TestSubmissionRequiresConsentAndLeavesNoFiles(t *testing.T) {
 func TestSubmissionRejectsOversizeAndLeavesNoFiles(t *testing.T) {
 	root := t.TempDir()
 	body, contentType := multipartBody(t, true, "sample.bin", bytes.Repeat([]byte("x"), 65))
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 64}
+	cfg := testConfig(root, 64)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", body)
 	req.Header.Set("Content-Type", contentType)
@@ -166,13 +173,38 @@ func TestSubmissionRejectsUnexpectedField(t *testing.T) {
 	_, _ = part.Write([]byte("fixture"))
 	_ = mw.Close()
 
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 4096}
+	cfg := testConfig(root, 4096)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", &body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	rr := httptest.NewRecorder()
 	newHandler(cfg).ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("got status %d", rr.Code)
+	}
+}
+
+func TestQuarantineCapacityGuardFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	body, contentType := multipartBody(t, true, "sample.bin", []byte("fixture"))
+	cfg := testConfig(root, 4096)
+	cfg.quarantineMinFreeBytes = ^uint64(0) - 4096
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", body)
+	req.Header.Set("Content-Type", contentType)
+	rr := httptest.NewRecorder()
+	newHandler(cfg).ServeHTTP(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got status %d: %s", rr.Code, rr.Body.String())
+	}
+	if rr.Header().Get("Retry-After") != "3600" {
+		t.Fatalf("Retry-After = %q", rr.Header().Get("Retry-After"))
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("capacity rejection wrote files: %v", entries)
 	}
 }
 
