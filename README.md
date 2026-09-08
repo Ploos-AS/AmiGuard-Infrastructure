@@ -30,7 +30,7 @@ M5.6 adds a proper browser receipt after successful form submission while preser
 
 M5.7 adds capacity and distributed-abuse protection: quarantine storage fails closed before the dedicated filesystem reaches its configured reserve/high-watermark, and all clients share a configurable global upload-byte budget. The production contract uses a 512 MiB free-space floor, 85% used-space watermark and 256 MiB/hour global request budget. Production qualification passed on the dedicated VPS: normal public intake verified exact bytes and metadata, a controlled storage-pressure test returned HTTP 503 with `Retry-After: 3600`, and the normal production configuration was restored afterward.
 
-M5.8 tightens global byte-budget accounting: the conservative maximum request charge is derived from the configured sample-size limit instead of a fixed 16 MiB assumption, and requests rejected solely because all concurrency slots are occupied no longer consume the global byte budget. The public write-only boundary and production quota values are unchanged.
+M5.8 tightens global byte-budget accounting: the conservative maximum request charge is derived from the configured sample-size limit instead of a fixed 16 MiB assumption, and requests rejected solely because all concurrency slots are occupied no longer consume the global byte budget. Production qualification passed on the dedicated VPS with the exact qualified image/configuration, a harmless public HTTPS upload, exact receipt/admin/stored-byte verification, fixture cleanup and final healthy loopback/public checks. The public write-only boundary and production quota values remain unchanged.
 
 **Public sample intake is live at `https://amiguard.ploos.no/`.** The active production deployment has `AMIGUARD_UPLOAD_ENABLED=true`. Intake remains write-only from the public side; administration and verified export remain local/SSH-only.
 
@@ -84,11 +84,11 @@ Administration remains separate:
 SSH -> amiguard-admin -> quarantine -> verified export -> isolated research environment
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md`, `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md`, `docs/M5_6_BROWSER_RECEIPT_QUALIFICATION.md`, `docs/M5_7_CAPACITY_ABUSE_HARDENING.md`, `docs/M5_7_CAPACITY_ABUSE_QUALIFICATION.md` and `docs/M5_8_UPLOAD_BUDGET_ACCOUNTING.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md`, `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md`, `docs/M5_6_BROWSER_RECEIPT_QUALIFICATION.md`, `docs/M5_7_CAPACITY_ABUSE_HARDENING.md`, `docs/M5_7_CAPACITY_ABUSE_QUALIFICATION.md`, `docs/M5_8_UPLOAD_BUDGET_ACCOUNTING.md` and `docs/M5_8_PRODUCTION_QUALIFICATION.md`.
 
 ## Next milestone
 
-M5.8 code and documentation are implemented. The remaining M5.8 gates are exact-HEAD CI followed by deployment and focused production runtime qualification on the dedicated VPS. CAPTCHA remains optional and should only be added if real abuse justifies the extra user/privacy cost.
+M5.8 is complete and production-qualified. CAPTCHA remains optional and should only be added if real abuse justifies the extra user/privacy cost. The next milestone should focus on operational review workflow and safe sample lifecycle improvements while preserving the write-only public boundary.
 
 ## License
 
