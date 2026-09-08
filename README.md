@@ -28,6 +28,8 @@ M5.5 records the final public go-live qualification. A harmless fixture was subm
 
 M5.6 adds a proper browser receipt after successful form submission while preserving the JSON receipt for API clients through `Accept` negotiation. The change was qualified in CI and then in production over public HTTPS; the receipt showed the server-generated submission ID and SHA-256, the quarantined bytes verified exactly, and the qualification fixture was removed afterward.
 
+M5.7 adds capacity and distributed-abuse protection: quarantine storage fails closed before the dedicated filesystem reaches its configured reserve/high-watermark, and all clients share a configurable global upload-byte budget. The production contract uses a 512 MiB free-space floor, 85% used-space watermark and 256 MiB/hour global request budget. Invalid global-budget configuration fails closed rather than silently weakening intake.
+
 **Public sample intake is live at `https://amiguard.ploos.no/`.** The active production deployment has `AMIGUARD_UPLOAD_ENABLED=true`. Intake remains write-only from the public side; administration and verified export remain local/SSH-only.
 
 ## Validation
@@ -80,11 +82,11 @@ Administration remains separate:
 SSH -> amiguard-admin -> quarantine -> verified export -> isolated research environment
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md`, `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md` and `docs/M5_6_BROWSER_RECEIPT_QUALIFICATION.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md`, `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md`, `docs/M5_6_BROWSER_RECEIPT_QUALIFICATION.md` and `docs/M5_7_CAPACITY_ABUSE_HARDENING.md`.
 
 ## Next milestone
 
-M5.6 is qualified and live. The next infrastructure step is M5.7 capacity/abuse hardening: add global upload-volume limits and a quarantine-storage high-watermark so public intake fails closed before the dedicated filesystem can be exhausted. CAPTCHA remains optional and should only be added if real abuse justifies the extra user/privacy cost.
+M5.7 code and deployment contract are implemented. The remaining M5.7 gate is exact-HEAD CI followed by production deployment and harmless runtime qualification on the dedicated VPS. CAPTCHA remains optional and should only be added if real abuse justifies the extra user/privacy cost.
 
 ## License
 
