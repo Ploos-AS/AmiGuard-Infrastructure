@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ const (
 	defaultGlobalUploadBytes       = int64(256 << 20)
 	defaultGlobalUploadByteWindow  = time.Hour
 	defaultUploadBudgetCharge      = int64((16 << 20) + (128 << 10))
+	maxConfigGlobalUploadBytes     = int64(8 << 30)
 )
 
 type uploadRateBucket struct {
@@ -24,28 +27,56 @@ type uploadRateBucket struct {
 }
 
 type uploadAbuseGuard struct {
-	mu                sync.Mutex
-	buckets           map[string]uploadRateBucket
-	window            time.Duration
-	maxRequests       int
-	slots             chan struct{}
-	byteWindow        time.Duration
-	maxGlobalBytes    int64
-	maxRequestCharge  int64
-	globalBytes       int64
+	mu                 sync.Mutex
+	buckets            map[string]uploadRateBucket
+	window             time.Duration
+	maxRequests        int
+	slots              chan struct{}
+	byteWindow         time.Duration
+	maxGlobalBytes     int64
+	maxRequestCharge   int64
+	globalBytes        int64
 	globalBytesStarted time.Time
 }
 
 func newUploadAbuseGuard() *uploadAbuseGuard {
+	maxBytes, byteWindow, err := globalUploadBudgetConfig()
+	if err != nil {
+		// Invalid abuse-control configuration must never silently weaken intake.
+		// A zero budget fails closed with HTTP 429 until configuration is fixed.
+		maxBytes = 0
+		byteWindow = defaultGlobalUploadByteWindow
+	}
 	return &uploadAbuseGuard{
 		buckets:          make(map[string]uploadRateBucket),
 		window:           defaultUploadRateLimitWindow,
 		maxRequests:      defaultUploadRateLimitRequests,
 		slots:            make(chan struct{}, defaultMaxConcurrentUploads),
-		byteWindow:       defaultGlobalUploadByteWindow,
-		maxGlobalBytes:   defaultGlobalUploadBytes,
+		byteWindow:       byteWindow,
+		maxGlobalBytes:   maxBytes,
 		maxRequestCharge: defaultUploadBudgetCharge,
 	}
+}
+
+func globalUploadBudgetConfig() (int64, time.Duration, error) {
+	maxBytes := defaultGlobalUploadBytes
+	window := defaultGlobalUploadByteWindow
+
+	if raw := os.Getenv("AMIGUARD_GLOBAL_UPLOAD_BYTES"); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value < defaultUploadBudgetCharge || value > maxConfigGlobalUploadBytes {
+			return 0, 0, fmt.Errorf("AMIGUARD_GLOBAL_UPLOAD_BYTES must be between %d and %d", defaultUploadBudgetCharge, maxConfigGlobalUploadBytes)
+		}
+		maxBytes = value
+	}
+	if raw := os.Getenv("AMIGUARD_GLOBAL_UPLOAD_WINDOW_SECONDS"); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value < 60 || value > 86400 {
+			return 0, 0, fmt.Errorf("AMIGUARD_GLOBAL_UPLOAD_WINDOW_SECONDS must be between 60 and 86400")
+		}
+		window = time.Duration(value) * time.Second
+	}
+	return maxBytes, window, nil
 }
 
 func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
@@ -86,7 +117,7 @@ func (g *uploadAbuseGuard) begin(w http.ResponseWriter, r *http.Request) bool {
 	if charge <= 0 || charge > g.maxRequestCharge {
 		charge = g.maxRequestCharge
 	}
-	if charge > g.maxGlobalBytes-g.globalBytes {
+	if g.maxGlobalBytes <= 0 || g.globalBytes > g.maxGlobalBytes || charge > g.maxGlobalBytes-g.globalBytes {
 		retryAfter := int(g.byteWindow.Seconds())
 		if retryAfter < 1 {
 			retryAfter = 1
