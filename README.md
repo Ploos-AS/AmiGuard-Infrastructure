@@ -26,6 +26,8 @@ M5.4 replaces qualification-only landing-page wording with a production submissi
 
 M5.5 records the final public go-live qualification. A harmless fixture was submitted through the public HTTPS endpoint, its server receipt matched the local SHA-256, `amiguard-admin` verified the quarantined bytes and metadata, public retrieval routes remained unavailable, and the fixture was removed after qualification.
 
+M5.6 adds a proper browser receipt after successful form submission while preserving the JSON receipt for API clients through `Accept` negotiation. The change was qualified in CI and then in production over public HTTPS; the receipt showed the server-generated submission ID and SHA-256, the quarantined bytes verified exactly, and the qualification fixture was removed afterward.
+
 **Public sample intake is live at `https://amiguard.ploos.no/`.** The active production deployment has `AMIGUARD_UPLOAD_ENABLED=true`. Intake remains write-only from the public side; administration and verified export remain local/SSH-only.
 
 ## Validation
@@ -78,11 +80,11 @@ Administration remains separate:
 SSH -> amiguard-admin -> quarantine -> verified export -> isolated research environment
 ```
 
-See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md` and `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md`.
+See `docs/M1_ROOTLESS_SUBMIT_SLICE.md`, `docs/M2_ROOTLESS_RUNTIME_HARDENING.md`, `docs/M3_QUARANTINE_PROTOCOL.md`, `docs/M4_PRODUCTION_VPS_QUALIFICATION.md`, `docs/M5_EDGE_ABUSE_HARDENING.md`, `docs/M5_ADMIN_CLI.md`, `docs/M5_3_PUBLIC_INTAKE_OPERATIONS.md`, `docs/M5_4_PUBLIC_LANDING_PAGE.md`, `docs/M5_5_PUBLIC_GO_LIVE_QUALIFICATION.md` and `docs/M5_6_BROWSER_RECEIPT_QUALIFICATION.md`.
 
 ## Next milestone
 
-M5 public intake is qualified and live. The next infrastructure work should focus on post-launch operational hardening and observability without expanding the public attack surface: capacity/health monitoring, retention housekeeping, incident drills and documented update/rollback procedures. Scanner/signature research remains in the separate AmiGuard repository.
+M5.6 is qualified and live. The next infrastructure step is M5.7 capacity/abuse hardening: add global upload-volume limits and a quarantine-storage high-watermark so public intake fails closed before the dedicated filesystem can be exhausted. CAPTCHA remains optional and should only be added if real abuse justifies the extra user/privacy cost.
 
 ## License
 
