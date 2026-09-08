@@ -30,12 +30,12 @@ type health struct {
 }
 
 type config struct {
-	addr                       string
-	uploadEnabled              bool
-	quarantineRoot             string
-	maxUploadBytes             int64
-	quarantineMinFreeBytes     uint64
-	quarantineMaxUsedPercent   uint64
+	addr                     string
+	uploadEnabled            bool
+	quarantineRoot           string
+	maxUploadBytes           int64
+	quarantineMinFreeBytes   uint64
+	quarantineMaxUsedPercent uint64
 }
 
 type submissionReceipt struct {
@@ -109,7 +109,7 @@ func loadConfig() (config, error) {
 
 func newHandler(cfg config) http.Handler {
 	mux := http.NewServeMux()
-	abuse := newUploadAbuseGuard()
+	abuse := newUploadAbuseGuard(cfg.maxUploadBytes)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
