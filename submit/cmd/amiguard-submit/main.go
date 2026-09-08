@@ -14,10 +14,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
-const defaultMaxUploadBytes int64 = 16 << 20
+const (
+	defaultMaxUploadBytes          int64  = 16 << 20
+	defaultQuarantineMinFreeBytes uint64 = 512 << 20
+	defaultQuarantineMaxUsedPct   uint64 = 85
+)
 
 type health struct {
 	Status  string `json:"status"`
@@ -25,10 +30,12 @@ type health struct {
 }
 
 type config struct {
-	addr           string
-	uploadEnabled  bool
-	quarantineRoot string
-	maxUploadBytes int64
+	addr                       string
+	uploadEnabled              bool
+	quarantineRoot             string
+	maxUploadBytes             int64
+	quarantineMinFreeBytes     uint64
+	quarantineMaxUsedPercent   uint64
 }
 
 type submissionReceipt struct {
@@ -60,10 +67,12 @@ func main() {
 
 func loadConfig() (config, error) {
 	cfg := config{
-		addr:           env("AMIGUARD_SUBMIT_ADDR", "127.0.0.1:8080"),
-		uploadEnabled:  strings.EqualFold(env("AMIGUARD_UPLOAD_ENABLED", "false"), "true"),
-		quarantineRoot: env("AMIGUARD_QUARANTINE_ROOT", "/data/quarantine"),
-		maxUploadBytes: defaultMaxUploadBytes,
+		addr:                     env("AMIGUARD_SUBMIT_ADDR", "127.0.0.1:8080"),
+		uploadEnabled:            strings.EqualFold(env("AMIGUARD_UPLOAD_ENABLED", "false"), "true"),
+		quarantineRoot:           env("AMIGUARD_QUARANTINE_ROOT", "/data/quarantine"),
+		maxUploadBytes:           defaultMaxUploadBytes,
+		quarantineMinFreeBytes:   defaultQuarantineMinFreeBytes,
+		quarantineMaxUsedPercent: defaultQuarantineMaxUsedPct,
 	}
 	if raw := os.Getenv("AMIGUARD_MAX_UPLOAD_BYTES"); raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
@@ -71,6 +80,20 @@ func loadConfig() (config, error) {
 			return config{}, errors.New("AMIGUARD_MAX_UPLOAD_BYTES must be between 1 and 67108864")
 		}
 		cfg.maxUploadBytes = value
+	}
+	if raw := os.Getenv("AMIGUARD_QUARANTINE_MIN_FREE_BYTES"); raw != "" {
+		value, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || value < 64<<20 {
+			return config{}, errors.New("AMIGUARD_QUARANTINE_MIN_FREE_BYTES must be at least 67108864")
+		}
+		cfg.quarantineMinFreeBytes = value
+	}
+	if raw := os.Getenv("AMIGUARD_QUARANTINE_MAX_USED_PERCENT"); raw != "" {
+		value, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || value < 50 || value > 95 {
+			return config{}, errors.New("AMIGUARD_QUARANTINE_MAX_USED_PERCENT must be between 50 and 95")
+		}
+		cfg.quarantineMaxUsedPercent = value
 	}
 	if cfg.uploadEnabled {
 		info, err := os.Lstat(cfg.quarantineRoot)
@@ -108,6 +131,12 @@ func newHandler(cfg config) http.Handler {
 			return
 		}
 		defer abuse.done()
+		if err := quarantineHasCapacity(cfg); err != nil {
+			log.Printf("submission rejected by quarantine capacity guard: %v", err)
+			w.Header().Set("Retry-After", "3600")
+			http.Error(w, "submission storage temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		handleSubmission(w, r, cfg)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +153,25 @@ func newHandler(cfg config) http.Handler {
 		fmt.Fprint(w, landingPage(cfg.uploadEnabled))
 	})
 	return mux
+}
+
+func quarantineHasCapacity(cfg config) error {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(cfg.quarantineRoot, &stat); err != nil {
+		return fmt.Errorf("statfs: %w", err)
+	}
+	blockSize := uint64(stat.Bsize)
+	available := stat.Bavail * blockSize
+	total := stat.Blocks * blockSize
+	used := (stat.Blocks - stat.Bfree) * blockSize
+	reserve := uint64(cfg.maxUploadBytes)
+	if available < cfg.quarantineMinFreeBytes || available-cfg.quarantineMinFreeBytes < reserve {
+		return fmt.Errorf("free-space floor reached: available=%d minimum=%d reserve=%d", available, cfg.quarantineMinFreeBytes, reserve)
+	}
+	if total == 0 || used*100 >= total*cfg.quarantineMaxUsedPercent {
+		return fmt.Errorf("used-space watermark reached: used=%d total=%d maximum=%d%%", used, total, cfg.quarantineMaxUsedPercent)
+	}
+	return nil
 }
 
 func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
