@@ -54,14 +54,17 @@ func TestUploadAbuseGuardConcurrencyLimit(t *testing.T) {
 
 	firstReq := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", nil)
 	firstReq.RemoteAddr = "198.51.100.40:1111"
+	firstReq.ContentLength = 40
 	first := httptest.NewRecorder()
 	if !guard.begin(first, firstReq) {
 		t.Fatal("first concurrent request unexpectedly rejected")
 	}
 	defer guard.done()
+	charged := guard.globalBytes
 
 	secondReq := httptest.NewRequest(http.MethodPost, "/api/v1/submissions", nil)
 	secondReq.RemoteAddr = "198.51.100.41:2222"
+	secondReq.ContentLength = 50
 	second := httptest.NewRecorder()
 	if guard.begin(second, secondReq) {
 		guard.done()
@@ -69,6 +72,9 @@ func TestUploadAbuseGuardConcurrencyLimit(t *testing.T) {
 	}
 	if second.Code != http.StatusTooManyRequests {
 		t.Fatalf("got status %d", second.Code)
+	}
+	if guard.globalBytes != charged {
+		t.Fatalf("concurrency rejection changed global byte budget: got %d want %d", guard.globalBytes, charged)
 	}
 }
 
@@ -121,6 +127,15 @@ func TestUploadAbuseGuardUnknownLengthChargedConservatively(t *testing.T) {
 	}
 }
 
+func TestUploadAbuseGuardDerivesMaxChargeFromConfiguredUploadLimit(t *testing.T) {
+	const maxUpload = int64(32 << 20)
+	guard := newUploadAbuseGuard(maxUpload)
+	want := maxUpload + multipartRequestOverhead
+	if guard.maxRequestCharge != want {
+		t.Fatalf("max request charge = %d, want %d", guard.maxRequestCharge, want)
+	}
+}
+
 func TestGlobalUploadBudgetConfiguration(t *testing.T) {
 	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_BYTES", "536870912")
 	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_WINDOW_SECONDS", "7200")
@@ -130,6 +145,15 @@ func TestGlobalUploadBudgetConfiguration(t *testing.T) {
 	}
 	if maxBytes != 536870912 || window != 2*time.Hour {
 		t.Fatalf("unexpected budget config: bytes=%d window=%s", maxBytes, window)
+	}
+}
+
+func TestGlobalUploadBudgetRejectsBudgetBelowConfiguredRequestAllowance(t *testing.T) {
+	const maxUpload = int64(64 << 20)
+	minimum := maxUpload + multipartRequestOverhead
+	t.Setenv("AMIGUARD_GLOBAL_UPLOAD_BYTES", "33554432")
+	if _, _, err := globalUploadBudgetConfig(minimum); err == nil {
+		t.Fatal("budget below configured maximum request allowance unexpectedly accepted")
 	}
 }
 
