@@ -37,7 +37,7 @@ func makeSubmissionRequest(t *testing.T, accept string) *http.Request {
 
 func TestBrowserSubmissionGetsHTMLReceipt(t *testing.T) {
 	root := t.TempDir()
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 16 << 20}
+	cfg := testConfig(root, 16<<20)
 	rr := httptest.NewRecorder()
 	newHandler(cfg).ServeHTTP(rr, makeSubmissionRequest(t, "text/html,application/xhtml+xml"))
 
@@ -57,7 +57,7 @@ func TestBrowserSubmissionGetsHTMLReceipt(t *testing.T) {
 
 func TestAPISubmissionKeepsJSONReceipt(t *testing.T) {
 	root := t.TempDir()
-	cfg := config{uploadEnabled: true, quarantineRoot: root, maxUploadBytes: 16 << 20}
+	cfg := testConfig(root, 16<<20)
 	rr := httptest.NewRecorder()
 	newHandler(cfg).ServeHTTP(rr, makeSubmissionRequest(t, "application/json"))
 
