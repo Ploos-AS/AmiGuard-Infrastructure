@@ -73,12 +73,16 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 	if len(receipt.ID) != 32 {
 		t.Fatalf("unexpected id %q", receipt.ID)
 	}
+	if receipt.Platform != "amiga" {
+		t.Fatalf("unexpected default platform %q", receipt.Platform)
+	}
 	wantHash := sha256.Sum256(payload)
 	if receipt.SHA256 != hex.EncodeToString(wantHash[:]) || receipt.Size != int64(len(payload)) {
 		t.Fatalf("unexpected receipt: %+v", receipt)
 	}
 
-	samplePath := filepath.Join(root, receipt.ID+".sample")
+	platformRoot := filepath.Join(root, "amiga")
+	samplePath := filepath.Join(platformRoot, receipt.ID+".sample")
 	stored, err := os.ReadFile(samplePath)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +98,7 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 		t.Fatalf("sample mode = %o", info.Mode().Perm())
 	}
 
-	metadataPath := filepath.Join(root, receipt.ID+".json")
+	metadataPath := filepath.Join(platformRoot, receipt.ID+".json")
 	metadataBytes, err := os.ReadFile(metadataPath)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +107,7 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 		t.Fatal(err)
 	}
-	if metadata["kind"] != "amiguard-quarantine-submission" || metadata["executed"] != false || metadata["extracted"] != false {
+	if metadata["kind"] != "amiguard-quarantine-submission" || metadata["platform"] != "amiga" || metadata["schema_version"] != float64(2) || metadata["executed"] != false || metadata["extracted"] != false {
 		t.Fatalf("unexpected metadata: %#v", metadata)
 	}
 	if strings.Contains(string(metadataBytes), "historic-virus-name.bin") {
@@ -114,7 +118,7 @@ func TestSubmissionWritesOpaqueSampleAndMetadata(t *testing.T) {
 	}
 }
 
-func TestSubmissionRequiresConsentAndLeavesNoFiles(t *testing.T) {
+func TestSubmissionRequiresConsentAndLeavesNoSampleFiles(t *testing.T) {
 	root := t.TempDir()
 	body, contentType := multipartBody(t, false, "sample.bin", []byte("fixture"))
 	cfg := testConfig(root, 4096)
@@ -126,8 +130,9 @@ func TestSubmissionRequiresConsentAndLeavesNoFiles(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("got status %d", rr.Code)
 	}
-	entries, err := os.ReadDir(root)
-	if err != nil {
+	platformRoot := filepath.Join(root, "amiga")
+	entries, err := os.ReadDir(platformRoot)
+	if err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 	if len(entries) != 0 {
@@ -135,7 +140,7 @@ func TestSubmissionRequiresConsentAndLeavesNoFiles(t *testing.T) {
 	}
 }
 
-func TestSubmissionRejectsOversizeAndLeavesNoFiles(t *testing.T) {
+func TestSubmissionRejectsOversizeAndLeavesNoSampleFiles(t *testing.T) {
 	root := t.TempDir()
 	body, contentType := multipartBody(t, true, "sample.bin", bytes.Repeat([]byte("x"), 65))
 	cfg := testConfig(root, 64)
@@ -147,8 +152,9 @@ func TestSubmissionRejectsOversizeAndLeavesNoFiles(t *testing.T) {
 	if rr.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("got status %d: %s", rr.Code, rr.Body.String())
 	}
-	entries, err := os.ReadDir(root)
-	if err != nil {
+	platformRoot := filepath.Join(root, "amiga")
+	entries, err := os.ReadDir(platformRoot)
+	if err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 	if len(entries) != 0 {
