@@ -157,6 +157,28 @@ func ensurePlatformQuarantine(root, platform string) (string, error) {
 	return path, nil
 }
 
+func ensureIncomingQuarantine(root string) (string, error) {
+	path := filepath.Join(root, ".incoming")
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel != ".incoming" {
+		return "", errors.New("invalid incoming quarantine path")
+	}
+	if err := os.Mkdir(path, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+		return "", err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return "", errors.New("incoming quarantine must be a non-symlink directory")
+	}
+	if err := os.Chmod(path, 0700); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func newHandler(cfg config) http.Handler {
 	mux := http.NewServeMux()
 	abuse := newUploadAbuseGuard(cfg.maxUploadBytes)
@@ -294,14 +316,14 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 				return
 			}
 			sampleSeen = true
-			platformRoot, rootErr := ensurePlatformQuarantine(cfg.quarantineRoot, platform)
+			incomingRoot, rootErr := ensureIncomingQuarantine(cfg.quarantineRoot)
 			if rootErr != nil {
 				_ = part.Close()
 				http.Error(w, "submission storage failed", http.StatusInternalServerError)
 				return
 			}
 			var writeErr error
-			tempPath, size, digest, writeErr = writeQuarantineTemp(platformRoot, id, part, cfg.maxUploadBytes)
+			tempPath, size, digest, writeErr = writeQuarantineTemp(incomingRoot, id, part, cfg.maxUploadBytes)
 			_ = part.Close()
 			if writeErr != nil {
 				if errors.Is(writeErr, errUploadTooLarge) {
