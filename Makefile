@@ -1,6 +1,6 @@
-.PHONY: check validate hardening qualification-records inventory-test go-test go-build container-build rootless-qualify
+.PHONY: check validate hardening qualification-records inventory-test asw-transfer-test go-test go-build container-build rootless-qualify
 
-check: validate hardening qualification-records inventory-test go-test go-build
+check: validate hardening qualification-records inventory-test asw-transfer-test go-test go-build
 	python3 -m compileall -q scripts
 
 validate:
@@ -16,6 +16,9 @@ qualification-records:
 
 inventory-test:
 	cd scripts && python3 test_inventory_quarantine.py
+
+asw-transfer-test:
+	cd scripts && python3 test_asw_transfer_bundle.py
 
 go-test:
 	cd submit && go test ./...
