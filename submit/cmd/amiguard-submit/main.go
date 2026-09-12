@@ -22,7 +22,14 @@ const (
 	defaultMaxUploadBytes          int64  = 16 << 20
 	defaultQuarantineMinFreeBytes uint64 = 512 << 20
 	defaultQuarantineMaxUsedPct   uint64 = 85
+	defaultPlatform                      = "amiga"
 )
+
+var supportedPlatforms = map[string]struct{}{
+	"amiga":    {},
+	"atari-st": {},
+	"mac68k":   {},
+}
 
 type health struct {
 	Status  string `json:"status"`
@@ -40,6 +47,7 @@ type config struct {
 
 type submissionReceipt struct {
 	ID         string `json:"id"`
+	Platform   string `json:"platform"`
 	SHA256     string `json:"sha256"`
 	Size       int64  `json:"size"`
 	ReceivedAt string `json:"received_at"`
@@ -105,6 +113,48 @@ func loadConfig() (config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+func normalizePlatform(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		value = defaultPlatform
+	}
+	if _, ok := supportedPlatforms[value]; !ok {
+		return "", errors.New("unsupported platform")
+	}
+	return value, nil
+}
+
+func platformQuarantineRoot(root, platform string) (string, error) {
+	platform, err := normalizePlatform(platform)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(root, platform)
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
+		return "", errors.New("invalid platform quarantine path")
+	}
+	return path, nil
+}
+
+func ensurePlatformQuarantine(root, platform string) (string, error) {
+	path, err := platformQuarantineRoot(root, platform)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(path, 0700); err != nil {
+		return "", err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return "", errors.New("platform quarantine must be a non-symlink directory")
+	}
+	return path, nil
 }
 
 func newHandler(cfg config) http.Handler {
@@ -182,6 +232,8 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 		return
 	}
 
+	platform := defaultPlatform
+	var platformSeen bool
 	var consent bool
 	var sampleSeen bool
 	var tempPath string
@@ -209,6 +261,24 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 		}
 		name := part.FormName()
 		switch name {
+		case "platform":
+			if platformSeen {
+				_ = part.Close()
+				http.Error(w, "platform must be specified at most once", http.StatusBadRequest)
+				return
+			}
+			platformSeen = true
+			value, readErr := io.ReadAll(io.LimitReader(part, 32))
+			_ = part.Close()
+			if readErr != nil {
+				http.Error(w, "invalid platform field", http.StatusBadRequest)
+				return
+			}
+			platform, err = normalizePlatform(string(value))
+			if err != nil {
+				http.Error(w, "unsupported platform", http.StatusBadRequest)
+				return
+			}
 		case "consent":
 			value, readErr := io.ReadAll(io.LimitReader(part, 16))
 			_ = part.Close()
@@ -224,8 +294,14 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 				return
 			}
 			sampleSeen = true
+			platformRoot, rootErr := ensurePlatformQuarantine(cfg.quarantineRoot, platform)
+			if rootErr != nil {
+				_ = part.Close()
+				http.Error(w, "submission storage failed", http.StatusInternalServerError)
+				return
+			}
 			var writeErr error
-			tempPath, size, digest, writeErr = writeQuarantineTemp(cfg.quarantineRoot, id, part, cfg.maxUploadBytes)
+			tempPath, size, digest, writeErr = writeQuarantineTemp(platformRoot, id, part, cfg.maxUploadBytes)
 			_ = part.Close()
 			if writeErr != nil {
 				if errors.Is(writeErr, errUploadTooLarge) {
@@ -251,31 +327,38 @@ func handleSubmission(w http.ResponseWriter, r *http.Request, cfg config) {
 		return
 	}
 
+	platformRoot, err := ensurePlatformQuarantine(cfg.quarantineRoot, platform)
+	if err != nil {
+		http.Error(w, "submission storage failed", http.StatusInternalServerError)
+		return
+	}
 	received := time.Now().UTC().Format(time.RFC3339Nano)
-	finalSample := filepath.Join(cfg.quarantineRoot, id+".sample")
+	finalSample := filepath.Join(platformRoot, id+".sample")
 	if err := os.Rename(tempPath, finalSample); err != nil {
 		http.Error(w, "submission storage failed", http.StatusInternalServerError)
 		return
 	}
 	tempPath = ""
 
-	receipt := submissionReceipt{ID: id, SHA256: digest, Size: size, ReceivedAt: received}
+	receipt := submissionReceipt{ID: id, Platform: platform, SHA256: digest, Size: size, ReceivedAt: received}
 	metadata := struct {
 		SchemaVersion int    `json:"schema_version"`
 		Kind          string `json:"kind"`
 		SubmissionID  string `json:"submission_id"`
+		Platform      string `json:"platform"`
 		SHA256        string `json:"sha256"`
 		Size          int64  `json:"size"`
 		ReceivedAt    string `json:"received_at"`
 		Consent       bool   `json:"consent"`
 		Executed      bool   `json:"executed"`
 		Extracted     bool   `json:"extracted"`
-	}{1, "amiguard-quarantine-submission", id, digest, size, received, true, false, false}
-	if err := writeMetadataAtomic(cfg.quarantineRoot, id, metadata); err != nil {
+	}{2, "amiguard-quarantine-submission", id, platform, digest, size, received, true, false, false}
+	if err := writeMetadataAtomic(platformRoot, id, metadata); err != nil {
 		_ = os.Remove(finalSample)
 		http.Error(w, "submission metadata failed", http.StatusInternalServerError)
 		return
 	}
+	_ = syncDir(platformRoot)
 	_ = syncDir(cfg.quarantineRoot)
 
 	w.Header().Set("Cache-Control", "no-store")
