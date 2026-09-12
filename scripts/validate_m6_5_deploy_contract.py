@@ -50,9 +50,12 @@ def main() -> int:
     ):
         require(caddy, item, str(CADDY))
 
-    # Runbook explicitly forbids implicit mutation of legacy production data.
+    # Runbook must explicitly preserve legacy production data and state that
+    # schema-v1 migration is not automatic. Validate the safe statements
+    # positively instead of rejecting their own wording as a substring.
     for item in (
         "Do not move, rewrite, or delete existing root-level schema-v1 submissions",
+        "No automatic migration of schema-v1 records is part of M6.5",
         "AMIGUARD_UPLOAD_ENABLED=false",
         "amiga",
         "atari-st",
@@ -62,7 +65,16 @@ def main() -> int:
     ):
         require(runbook, item, str(RUNBOOK))
 
-    forbid(runbook, "automatic migration of schema-v1", str(RUNBOOK))
+    # Reject imperative wording that would turn the rollout into a bulk legacy
+    # migration. These strings intentionally do not match the documented
+    # negative/safety statements above.
+    for item in (
+        "Move all existing root-level schema-v1 submissions",
+        "Rewrite all existing root-level schema-v1 submissions",
+        "Migrate all schema-v1 records into amiga/",
+    ):
+        forbid(runbook, item, str(RUNBOOK))
+
     print("M6.5 production deployment contract: PASS")
     return 0
 
